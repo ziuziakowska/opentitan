@@ -4194,7 +4194,15 @@ opentitan_test(
     name = "usbdev_aon_wake_disconnect_test",
     srcs = ["usbdev_aon_wake_disconnect_test.c"],
     exec_env = dicts.add(
+        EARLGREY_TEST_ENVS,
         EARLGREY_SILICON_OWNER_ROM_EXT_ENVS,
+    ),
+    fpga = fpga_params(
+        test_cmd = """
+            --bootstrap="{firmware}"
+            --wake=disconnect
+        """,
+        test_harness = "//sw/host/tests/chip/usb:usbdev_aon_wake",
     ),
     silicon = silicon_params(
         test_cmd = """
