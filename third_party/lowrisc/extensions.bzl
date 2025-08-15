@@ -5,12 +5,12 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 def _lowrisc_repos():
-    VERSION = "20240923-1"
+    VERSION = "test-2025-08-15-v2"
     http_archive(
         name = "lowrisc_rv32imcb_toolchain",
-        url = "https://github.com/lowRISC/lowrisc-toolchains/releases/download/{v}/lowrisc-toolchain-rv32imcb-{v}.tar.xz".format(v = VERSION),
-        sha256 = "aeea1983553f4c81c6409abcf0d6ca33b5ed4716b2b694e7ff030523cf13486a",
-        strip_prefix = "lowrisc-toolchain-rv32imcb-{}".format(VERSION),
+        url = "https://github.com/jwnrt/lowrisc-toolchains/releases/download/{v}/lowrisc-toolchain-rv32imcb-x86_64-{v}.tar.xz".format(v = VERSION),
+        sha256 = "11a63c08de028bebe6d3546979bb024d5b95dba3362fcdfab4d7172fe3b12e20",
+        strip_prefix = "lowrisc-toolchain-rv32imcb-x86_64-{}".format(VERSION),
         build_file = ":BUILD.lowrisc_rv32imcb_toolchain.bazel",
     )
 
