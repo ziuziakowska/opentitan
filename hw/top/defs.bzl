@@ -17,6 +17,11 @@ ALL_TOP_NAMES = [
     for top in ALL_TOPS
 ]
 
+ALL_SEED_NAMES = [
+    "dev",
+    "prod"
+]
+
 def _all_ip_names():
     names = {ip.name: 1 for top in ALL_TOPS for ip in top.ips}
     return sorted(names.keys())
