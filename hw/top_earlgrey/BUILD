@@ -19,6 +19,7 @@ load(
     "sim_verilator",
 )
 load("//rules/opentitan:qemu.bzl", "qemu_cfg", "qemu_flash", "qemu_otp")
+load("//hw/top:defs.bzl", "opentitan_select_top_secret_cfg")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -78,7 +79,6 @@ fpga_cw310(
     ],
     linker_script = "//sw/device/lib/testing/test_framework:ottf_ld_silicon_creator_slot_a",
     test_cmd = "testing-not-supported",
-    top_secret_cfg = "//hw/top_earlgrey/data/autogen:top_earlgrey.secrets.dev.gen.hjson",
 )
 
 fpga_cw310(
@@ -227,7 +227,6 @@ fpga_cw305(
     ],
     linker_script = "//sw/device/lib/testing/test_framework:ottf_ld_silicon_creator_slot_a",
     test_cmd = "testing-not-supported",
-    top_secret_cfg = "//hw/top_earlgrey/data/autogen:top_earlgrey.secrets.dev.gen.hjson",
 )
 
 ###########################################################################
@@ -261,7 +260,6 @@ fpga_cw340(
         "exit_failure": DEFAULT_TEST_FAILURE_MSG,
     },
     test_cmd = "testing-not-supported",
-    top_secret_cfg = "//hw/top_earlgrey/data/autogen:top_earlgrey.secrets.dev.gen.hjson",
 )
 
 fpga_cw340(
@@ -400,7 +398,6 @@ silicon(
         --exec="console --non-interactive --exit-success='{exit_success}' --exit-failure='{exit_failure}'"
         no-op
     """,
-    top_secret_cfg = "//hw/top_earlgrey/data/autogen:top_earlgrey.secrets.dev.gen.hjson",
 )
 
 silicon(
@@ -443,7 +440,6 @@ silicon(
         --exec="console --non-interactive --exit-success='{exit_success}' --exit-failure='{exit_failure}'"
         no-op
     """,
-    top_secret_cfg = "//hw/top_earlgrey/data/autogen:top_earlgrey.secrets.dev.gen.hjson",
 )
 
 ###########################################################################
@@ -464,7 +460,6 @@ sim_verilator(
     linker_script = "//sw/device/lib/testing/test_framework:ottf_ld_silicon_creator_slot_a",
     otp = "//hw/top_earlgrey/data/otp:img_rma",
     test_cmd = "testing-not-supported",
-    top_secret_cfg = "//hw/top_earlgrey/data/autogen:top_earlgrey.secrets.dev.gen.hjson",
 )
 
 sim_verilator(

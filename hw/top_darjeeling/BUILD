@@ -8,6 +8,7 @@ load(
     "DEFAULT_TEST_SUCCESS_MSG",
     "sim_dv",
 )
+load("//hw/top:defs.bzl", "opentitan_select_top_secret_cfg")
 
 package(default_visibility = ["//visibility:public"])
 
