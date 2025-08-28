@@ -41,7 +41,7 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//rules:const.bzl", "CONST", "hex")
 load("//rules/opentitan:toolchain.bzl", "LOCALTOOLS_TOOLCHAIN")
 load("//rules:stamp.bzl", "stamp_attr", "stamping_enabled")
-load("//hw/top:defs.bzl", "opentitan_select_top_attr")
+load("//hw/top:defs.bzl", "opentitan_select_top_attr", "opentitan_select_top_secret_cfg")
 
 def get_otp_images():
     """Returns a list of (otp_name, img_target) tuples.
@@ -274,8 +274,8 @@ otp_image = rule(
         ),
         "top_secret_cfg": attr.label(
             allow_single_file = True,
+            default = "//hw/top:top_secret_cfg_default",
             doc = "Generated top configuration file including secrets.",
-            mandatory = True,
         ),
         "data_perm": attr.label(
             default = "//util/design/data:data_perm",
@@ -346,8 +346,8 @@ otp_image_consts = rule(
         ),
         "top_secret_cfg": attr.label(
             allow_single_file = True,
+            default = "//hw/top:top_secret_cfg_default",
             doc = "Generated top configuration file including secrets.",
-            mandatory = True,
         ),
         "c_template": attr.label(
             allow_single_file = True,

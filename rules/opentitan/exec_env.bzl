@@ -194,6 +194,7 @@ def exec_env_common_attrs(**kwargs):
         ),
         "top_secret_cfg": attr.label(
             allow_single_file = True,
+            default = "//hw/top:top_secret_cfg_default",
             doc = "Generated top configuration file including secrets.",
         ),
         "otp_data_perm": attr.label(

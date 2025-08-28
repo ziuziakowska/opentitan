@@ -120,8 +120,8 @@ scramble_flash_vmem = rv_rule(
         "otp": attr.label(allow_single_file = True),
         "top_secret_cfg": attr.label(
             allow_single_file = True,
+            default = "//hw/top:top_secret_cfg_default",
             doc = "Generated top configuration file including secrets.",
-            mandatory = True,
         ),
         "otp_data_perm": attr.label(
             default = "//util/design/data:data_perm",

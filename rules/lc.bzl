@@ -5,6 +5,7 @@
 """Rules for generating lc_ctrl netlist constants used in SW."""
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
+load("//hw/top:defs.bzl", "opentitan_select_top_secret_cfg")
 
 def _lc_raw_unlock_token_impl(ctx):
     output = ctx.actions.declare_file("src/" + ctx.attr.name + ".rs")
@@ -57,6 +58,7 @@ lc_raw_unlock_token = rule(
         ),
         "top_secret_cfg": attr.label(
             allow_single_file = True,
+            default = "//hw/top:top_secret_cfg_default",
             doc = "Generated top configuration file including secrets.",
         ),
         "_tool": attr.label(
