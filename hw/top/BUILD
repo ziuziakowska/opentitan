@@ -21,6 +21,7 @@ load(
     "opentitan_if_ip",
     "opentitan_require_ip",
     "opentitan_select_ip_attr",
+    "opentitan_select_top_secret_cfg",
 )
 
 package(default_visibility = ["//visibility:public"])
@@ -66,6 +67,19 @@ string_flag(
     for seed in ALL_SEED_NAMES
 ]
 
+# Config settings that combine top and seed selections
+[
+    config_setting(
+        name = "is_{}_and_seed_{}".format(top, seed),
+        flag_values = {
+            ":top": top,
+            ":seed": seed,
+        },
+    )
+    for top in ALL_TOP_NAMES
+    for seed in ALL_SEED_NAMES
+]
+
 # Point to the right top library.
 opentitan_alias_top_attr(
     name = "top_lib",
@@ -76,6 +90,13 @@ opentitan_alias_top_attr(
 opentitan_alias_top_attr(
     name = "top_ld",
     attr_name = "top_ld",
+)
+
+# Default top_secret_cfg that automatically selects based on the chosen top
+filegroup(
+    name = "top_secret_cfg_default",
+    srcs = [opentitan_select_top_secret_cfg()],
+    visibility = ["//visibility:public"],
 )
 
 opentitan_alias_top_attr(

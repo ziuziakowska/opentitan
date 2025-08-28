@@ -247,3 +247,38 @@ def opentitan_require_ip_attr(ipname, attr_name):
     the required attribute.
     """
     return opentitan_if_ip_attr(ipname, attr_name, [], ["@platforms//:incompatible"])
+
+def opentitan_get_top_secret_cfg(top_name, seed_mode):
+    """
+    Return the path to the top secret configuration file for the given top and seed mode.
+    
+    Example:
+    top_secret_cfg = opentitan_get_top_secret_cfg("earlgrey", "dev"),
+    """
+    return "//hw/top_{}/data/autogen/top_{}.secrets.{}.gen.hjson".format(
+        top_name, top_name, seed_mode
+    )
+
+def opentitan_select_top_secret_cfg():
+    """
+    Return a select expression that gives access to the top_secret_cfg based on
+    the selected top and seed.
+    
+    Example:
+    top_secret_cfg = opentitan_select_top_secret_cfg(),
+    """
+    branches = {}
+    
+    # For each top, create branches for the secrets configuration
+    for top in ALL_TOPS:
+        # Create branches for each seed mode
+        for seed_mode in ALL_SEED_NAMES:
+            # Use the helper function to construct the path
+            secret_path = opentitan_get_top_secret_cfg(top.name, seed_mode)
+            config_key = "@lowrisc_opentitan//hw/top:is_{}_and_seed_{}".format(top.name, seed_mode)
+            branches[config_key] = secret_path
+    
+    # Add default fallback
+    branches["//conditions:default"] = "//hw/top_earlgrey/data/autogen:top_earlgrey.secrets.dev.gen.hjson"
+    
+    return select(branches, no_match_error = "no top_secret_cfg found for the selected top and seed")
