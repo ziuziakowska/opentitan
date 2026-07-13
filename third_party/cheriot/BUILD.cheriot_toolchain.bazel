@@ -1,0 +1,43 @@
+# Copyright lowRISC contributors (OpenTitan project).
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+
+load("@bazel_skylib//rules/directory:directory.bzl", "directory")
+load("@bazel_skylib//rules/directory:subdirectory.bzl", "subdirectory")
+load("@rules_cc//cc/toolchains:tool.bzl", "cc_tool")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(glob(["**"]))
+
+cc_tool(
+    name = "clang",
+    src = ":bin/clang",
+    data = [":root"],
+)
+
+cc_tool(
+    name = "clang++",
+    src = ":bin/clang++",
+    data = [":root"],
+)
+
+[
+    cc_tool(
+        name = tool,
+        src = ":bin/llvm-{}".format(tool),
+        data = [":root"],
+    ) for tool in [
+        "ar",
+        "as",
+        "nm",
+        "objcopy",
+        "objdump",
+        "strip",
+    ]
+]
+
+directory(
+    name = "root",
+    srcs = glob(["**/*"]),
+)

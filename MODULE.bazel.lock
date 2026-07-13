@@ -276,6 +276,31 @@
         ]
       }
     },
+    "//third_party/cheriot:extensions.bzl%cheriot_toolchain": {
+      "general": {
+        "bzlTransitiveDigest": "fkPw8zf5DV2tRQKTqVhcLODTZw6LC0gxwV5ySW00+Mo=",
+        "usagesDigest": "zeeI4jNuZ0EEBnXa7gJlUClt0nUdME4vtnhhw5W+LmM=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "cheriot_toolchain": {
+            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:local.bzl%new_local_repository",
+            "attributes": {
+              "path": "/nix/store/c5swjfdl7av20ggwhk0x0mb887mxp84s-llvm-cheriot-20.0.0/",
+              "build_file": "@@//third_party/cheriot:BUILD.cheriot_toolchain.bazel"
+            }
+          }
+        },
+        "recordedRepoMappingEntries": [
+          [
+            "",
+            "bazel_tools",
+            "bazel_tools"
+          ]
+        ]
+      }
+    },
     "//third_party/coremark:extensions.bzl%coremark": {
       "general": {
         "bzlTransitiveDigest": "ayJkp3wmO+LQ6BSJFIUNXr7n6tBZdE1YV9zrX4sjFd8=",

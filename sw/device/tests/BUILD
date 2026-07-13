@@ -35,8 +35,15 @@ load(
 load("//rules/opentitan:keyutils.bzl", "ECDSA_ONLY_KEY_STRUCTS")
 load("//hw/top:defs.bzl", "opentitan_if_ip", "opentitan_select_top")
 load("//rules/opentitan:util.bzl", "flatten")
+load("//rules/opentitan:cc.bzl", "cheriot_binary")
 
 package(default_visibility = ["//visibility:public"])
+
+
+cheriot_binary(
+    name = "hello_test",
+    srcs = ["hello.S"],
+)
 
 # TODO(lowRISC:opentitan#13180): this is a temporary solution to enable writing
 # manufacturer specific tests in the `manufacturer_test_hooks` repository that

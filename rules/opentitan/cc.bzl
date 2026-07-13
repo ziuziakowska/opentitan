@@ -15,6 +15,7 @@ load(
     "obj_disassemble",
     "obj_transform",
 )
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:action_names.bzl", "CPP_LINK_STATIC_LIBRARY_ACTION_NAME", "OBJ_COPY_ACTION_NAME")
 load("@lowrisc_opentitan//rules:signing.bzl", "sign_binary")
 load("@lowrisc_opentitan//rules/opentitan:exec_env.bzl", "ExecEnvInfo")
@@ -23,6 +24,49 @@ load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain")
 load("//rules/opentitan:toolchain.bzl", "LOCALTOOLS_TOOLCHAIN")
 load("//rules/opentitan:util.bzl", "assemble_for_test", "recursive_format")
 load("//rules/opentitan:providers.bzl", "OpenTitanBinaryInfo", "OpenTitanTestInfo")
+
+def _cheriot_transition_impl(settings, attr):
+    return {
+        "//command_line_option:platforms": [
+            "//toolchain:opentitan_cheriot_platform",
+        ],
+    }
+
+
+cheriot_transition = transition(
+    implementation = _cheriot_transition_impl,
+    inputs = [],
+    outputs = [
+        "//command_line_option:platforms",
+    ],
+)
+
+def _cheriot_binary_impl(ctx):
+    return DefaultInfo(
+        files = depset(ctx.files.binary),
+    )
+
+
+cheriot_binary_rule = rule(
+    implementation = _cheriot_binary_impl,
+    attrs = {
+        "binary": attr.label(
+            cfg = cheriot_transition,
+        ),
+    },
+)
+
+
+def cheriot_binary(name, **kwargs):
+    cc_binary(
+        name = name + "_impl",
+        **kwargs
+    )
+
+    cheriot_binary_rule(
+        name = name,
+        binary = name + "_impl",
+    )
 
 def _expand(ctx, name, items):
     """Perform location and make_variable expansion on a list of items.

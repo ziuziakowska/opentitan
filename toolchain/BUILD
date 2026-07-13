@@ -25,6 +25,7 @@ platform(
         "@platforms//cpu:riscv32",
         "@platforms//os:none",
         ":device",
+        ":noncheriot",
     ],
 )
 
@@ -45,12 +46,68 @@ config_setting(
     constraint_values = [":device"],
 )
 
+constraint_setting(name = "_cheriot")
+
+constraint_value(
+    name = "noncheriot",
+    constraint_setting = ":_cheriot",
+)
+
+constraint_value(
+    name = "cheriot",
+    constraint_setting = ":_cheriot",
+)
+
+platform(
+    name = "opentitan_cheriot_platform",
+    constraint_values = [
+        "@platforms//cpu:riscv32",
+        "@platforms//os:none",
+        ":device",
+        ":cheriot",
+    ],
+)
+
+toolchain(
+    name = "cc_toolchain_cheriot",
+    exec_compatible_with = ["@platforms//cpu:x86_64"],
+    target_compatible_with = [
+        "@platforms//cpu:riscv32",
+        "@platforms//os:none",
+        ":cheriot",
+    ],
+    toolchain = ":cheriot_toolchain",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
+cc_toolchain(
+    name = "cheriot_toolchain",
+    args = [":arch_cheriot"],
+    enabled_features = [
+        "@rules_cc//cc/toolchains/args:experimental_replace_legacy_action_config_features",
+    ],
+    known_features = [
+        "@rules_cc//cc/toolchains/args:experimental_replace_legacy_action_config_features",
+    ],
+    tool_map = ":cheriot_tool_map",
+)
+
+cc_tool_map(
+    name = "cheriot_tool_map",
+    tools = {
+        "@rules_cc//cc/toolchains/actions:assembly_actions": "@cheriot_toolchain//:clang",
+        "@rules_cc//cc/toolchains/actions:c_compile": "@cheriot_toolchain//:clang",
+        "@rules_cc//cc/toolchains/actions:link_actions": "@cheriot_toolchain//:clang",
+    },
+)
+
 toolchain(
     name = "cc_toolchain_opentitan",
     exec_compatible_with = ["@platforms//cpu:x86_64"],
     target_compatible_with = [
         "@platforms//cpu:riscv32",
         "@platforms//os:none",
+        ":noncheriot",
     ],
     toolchain = ":opentitan_toolchain",
     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
@@ -293,6 +350,23 @@ cc_args(
     ],
     args = ["-march=rv32imc_zba_zbb_zbc_zbs"],
     requires_any_of = [":constraint_bitmanip"],
+)
+
+cc_args(
+    name = "arch_cheriot",
+    actions = [
+        "@rules_cc//cc/toolchains/actions:compile_actions",
+        "@rules_cc//cc/toolchains/actions:link_actions",
+    ],
+    # TODO: -mxcheri-rvc
+    args = [
+        "--target=riscv32-unknown-unknown",
+        "-mcpu=cheriot",
+        "-mabi=cheriot",
+        "-ffreestanding",
+        "-nostdlib",
+    ],
+    #requires_any_of = [":constraint_cheirot"],
 )
 
 cc_args(
