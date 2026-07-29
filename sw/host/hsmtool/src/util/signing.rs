@@ -100,7 +100,7 @@ impl SignData {
             },
             KeyType::SlhDsa => match self {
                 // Data is plaintext: hash.
-                SignData::PlainText => Self::data_plain_text(input),
+                SignData::PlainText => Self::data_raw(input, false),
                 // Data is already hashed: no transformation needed.
                 // If the `little_endian` flag is true, we assume the pre-hashed input came
                 // from opentitantool, which writes out the hash in little endian order,
@@ -110,7 +110,7 @@ impl SignData {
                 // Raw data requires no transformation.
                 SignData::Raw => Self::data_raw(input, false),
                 // Data is a slice of plaintext: hash.
-                SignData::Slice(a, b) => Self::data_plain_text(&input[*a..*b]),
+                SignData::Slice(a, b) => Self::data_raw(&input[*a..*b], false),
             },
             _ => Err(HsmError::Unsupported(format!("SignData prepare for {keytype:?}")).into()),
         }
