@@ -99,17 +99,12 @@ impl SignData {
                 SignData::Slice(a, b) => Self::data_plain_text(&input[*a..*b]),
             },
             KeyType::SlhDsa => match self {
-                // Data is plaintext: hash.
-                SignData::PlainText => Self::data_raw(input, false),
-                // Data is already hashed: no transformation needed.
-                // If the `little_endian` flag is true, we assume the pre-hashed input came
-                // from opentitantool, which writes out the hash in little endian order,
-                // and therefore, needs to be reversed before the signing operation.
-                SignData::Sha256Hash => Self::data_raw(input, false),
+                // For SlhDsa, the data format determines the mechanism (SLH-DSA or HashSLH-DSA).
+                // The data is passed as-is.
+                SignData::PlainText | SignData::Sha256Hash | SignData::Raw => {
+                    Self::data_raw(input, false)
+                }
                 SignData::Sha256HashReversed => Self::data_raw(input, true),
-                // Raw data requires no transformation.
-                SignData::Raw => Self::data_raw(input, false),
-                // Data is a slice of plaintext: hash.
                 SignData::Slice(a, b) => Self::data_raw(&input[*a..*b], false),
             },
             _ => Err(HsmError::Unsupported(format!("SignData prepare for {keytype:?}")).into()),
@@ -174,10 +169,9 @@ impl SignData {
                 SignData::PlainText | SignData::Raw | SignData::Slice(_, _) => Ok(
                     Mechanism::SlhDsa(SignAdditionalContext::new(HedgeType::Preferred, None)),
                 ),
-                SignData::Sha256Hash | SignData::Sha256HashReversed => Err(HsmError::Unsupported(
-                    "we don't know what to do here yet".to_string(),
-                )
-                .into()),
+                SignData::Sha256Hash | Self::Sha256HashReversed => Ok(Mechanism::HashSlhDsaSha256(
+                    SignAdditionalContext::new(HedgeType::Preferred, None),
+                )),
             },
             _ => Err(HsmError::Unsupported(format!("No mechanism for {keytype:?}")).into()),
         }
