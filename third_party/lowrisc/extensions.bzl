@@ -4,7 +4,28 @@
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-def _lowrisc_repos():
+load("@bazel_tools//tools/build_defs/repo:local.bzl", "new_local_repository")
+
+def _lowrisc_binutils():
+    new_local_repository(
+        name = "lowrisc_rv32imcb_binutils",
+        # Replace with your own path.
+        # This is just the current archive, but with riscv32-unknown-elf/bin/* in bin/
+        path = "/home/alice/Desktop/lowrisc-toolchain-binutils",
+        build_file = ":BUILD.lowrisc_rv32imcb_binutils.bazel",
+    )
+
+def __lowrisc_llvm():
+    new_local_repository(
+        name = "lowrisc_rv32imcb_toolchain",
+        # Replace with your own path.
+        # This is just the current archive, with Binutils items removed.
+        path = "/home/alice/Desktop/lowrisc-toolchain-llvm",
+        build_file = ":BUILD.lowrisc_rv32imcb_toolchain.bazel",
+    )
+
+
+def _lowrisc_llvm():
     VERSION = "20260224-1"
     http_archive(
         name = "lowrisc_rv32imcb_toolchain",
@@ -15,5 +36,9 @@ def _lowrisc_repos():
     )
 
 lowrisc_rv32imcb_toolchain = module_extension(
-    implementation = lambda _: _lowrisc_repos(),
+    implementation = lambda _: __lowrisc_llvm(),
+)
+
+lowrisc_rv32imcb_binutils = module_extension(
+    implementation = lambda _: _lowrisc_binutils(),
 )

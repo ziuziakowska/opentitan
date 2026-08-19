@@ -296,7 +296,7 @@ For example the following command shows how to disassemble all sections of the U
 ```console
 bazel build --config=riscv32 //sw/device/tests:uart_smoketest_prog_sim_verilator.elf
 
-bazel run @lowrisc_rv32imcb_toolchain//:bin/riscv32-unknown-elf-objdump -- \
+bazel run @lowrisc_rv32imcb_binutils//:bin/objdump -- \
   --disassemble-all --headers --line-numbers --source \
   "$(bazel outquery --config=riscv32 //sw/device/tests:uart_smoketest_prog_sim_verilator.elf)"
 ```

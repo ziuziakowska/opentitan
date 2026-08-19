@@ -22,6 +22,10 @@ def find_tool(tool_name: str) -> str:
     '''
     tool_env_var = 'RV32_TOOL_' + tool_name.upper()
     configured_tool_path = os.environ.get(tool_env_var)
+
+    print(tool_env_var)
+    print(configured_tool_path)
+    
     if configured_tool_path is not None:
         if not os.path.exists(configured_tool_path):
             raise RuntimeError('No such file: {!r} (derived from the '

@@ -175,7 +175,7 @@ py_binary(
         "//third_party/openocd:jtag_cmsis_dap_adapter_cfg",
         "//third_party/openocd:openocd_bin",
         "//util/openocd/target:lowrisc-earlgrey.cfg",
-        "@lowrisc_rv32imcb_toolchain//:bin/riscv32-unknown-elf-gdb",
+        "@lowrisc_rv32imcb_binutils//:bin/gdb",
     ],
     deps = [
         "//sw/host/penetrationtests/python/util:dis_parser",
@@ -194,7 +194,7 @@ py_binary(
         "//third_party/openocd:jtag_cmsis_dap_adapter_cfg",
         "//third_party/openocd:openocd_bin",
         "//util/openocd/target:lowrisc-earlgrey.cfg",
-        "@lowrisc_rv32imcb_toolchain//:bin/riscv32-unknown-elf-gdb",
+        "@lowrisc_rv32imcb_binutils//:bin/gdb",
     ],
     deps = [
         "//sw/host/penetrationtests/python/util:dis_parser",
@@ -213,7 +213,7 @@ py_binary(
         "//third_party/openocd:jtag_cmsis_dap_adapter_cfg",
         "//third_party/openocd:openocd_bin",
         "//util/openocd/target:lowrisc-earlgrey.cfg",
-        "@lowrisc_rv32imcb_toolchain//:bin/riscv32-unknown-elf-gdb",
+        "@lowrisc_rv32imcb_binutils//:bin/gdb",
     ],
     deps = [
         "//sw/host/penetrationtests/python/util:dis_parser",
@@ -232,7 +232,7 @@ py_binary(
         "//third_party/openocd:jtag_cmsis_dap_adapter_cfg",
         "//third_party/openocd:openocd_bin",
         "//util/openocd/target:lowrisc-earlgrey.cfg",
-        "@lowrisc_rv32imcb_toolchain//:bin/riscv32-unknown-elf-gdb",
+        "@lowrisc_rv32imcb_binutils//:bin/gdb",
     ],
     deps = [
         "//sw/host/penetrationtests/python/util:dis_parser",
@@ -267,7 +267,7 @@ py_binary(
         "//third_party/openocd:jtag_cmsis_dap_adapter_cfg",
         "//third_party/openocd:openocd_bin",
         "//util/openocd/target:lowrisc-earlgrey.cfg",
-        "@lowrisc_rv32imcb_toolchain//:bin/riscv32-unknown-elf-gdb",
+        "@lowrisc_rv32imcb_binutils//:bin/gdb",
     ],
     deps = [
         "//sw/host/penetrationtests/python/util:dis_parser",
@@ -286,7 +286,7 @@ py_binary(
         "//third_party/openocd:jtag_cmsis_dap_adapter_cfg",
         "//third_party/openocd:openocd_bin",
         "//util/openocd/target:lowrisc-earlgrey.cfg",
-        "@lowrisc_rv32imcb_toolchain//:bin/riscv32-unknown-elf-gdb",
+        "@lowrisc_rv32imcb_binutils//:bin/gdb",
     ],
     deps = [
         "//sw/host/penetrationtests/python/fi:fi_sym_cryptolib_commands",
@@ -327,7 +327,7 @@ py_binary(
         "//third_party/openocd:jtag_cmsis_dap_adapter_cfg",
         "//third_party/openocd:openocd_bin",
         "//util/openocd/target:lowrisc-earlgrey.cfg",
-        "@lowrisc_rv32imcb_toolchain//:bin/riscv32-unknown-elf-gdb",
+        "@lowrisc_rv32imcb_binutils//:bin/gdb",
     ],
     deps = [
         "//sw/host/penetrationtests/python/fi:fi_asym_cryptolib_commands",
@@ -350,7 +350,7 @@ py_binary(
         "//third_party/openocd:jtag_cmsis_dap_adapter_cfg",
         "//third_party/openocd:openocd_bin",
         "//util/openocd/target:lowrisc-earlgrey.cfg",
-        "@lowrisc_rv32imcb_toolchain//:bin/riscv32-unknown-elf-gdb",
+        "@lowrisc_rv32imcb_binutils//:bin/gdb",
     ],
     deps = [
         "//sw/host/penetrationtests/python/fi:fi_unit_gdb_commands",
