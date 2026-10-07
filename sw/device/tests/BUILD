@@ -780,6 +780,14 @@ CHERIOT_SMOKETEST_ENVS = {
 CHERIOT_SMOKETEST_FAILURE = "FAIL |[RC]TRAP "
 
 opentitan_test(
+    name = "cheriot_something",
+    srcs = ["cheriot_something.S", "cheriot_main.c"],
+    exec_env = CHERIOT_SMOKETEST_ENVS,
+    platform = CHERIOT_PLATFORM,
+    deps = CHERIOT_SMOKETEST_DEPS,
+)
+
+opentitan_test(
     name = "cheriot_smoketest",
     srcs = ["cheriot_smoketest.S"],
     dv = dv_params(
