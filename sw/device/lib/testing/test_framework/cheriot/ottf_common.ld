@@ -183,7 +183,7 @@ SECTIONS {
      * This is much cheaper (for small data) than materializing the
      * address and loading from that (which will take one extra instruction).
      */
-    __global_pointer$ = . + 2048;
+    //__global_pointer$ = . + 2048;
 
     /* SRAM programs embedded in functional tests must come first. */
     *(.data.sram_program)
@@ -217,6 +217,8 @@ SECTIONS {
      * NVM, as we do in our other linker scripts.
      */
   } > ram_main AT> ottf_nvm :data_segment
+
+  __global_pointer$ = ADDR(.data) + (SIZEOF(.data) / 2);
 
   /**
    * Standard BSS section. This will be zeroed at runtime by the CRT.
