@@ -760,7 +760,9 @@ opentitan_test(
 )
 
 CHERIOT_SMOKETEST_DEPS = [
+    "//hw/top:cheriot_c_regs",
     "//hw/top:rv_core_ibex_c_regs",
+    "//hw/top:sram_ctrl_c_regs",
     "//hw/top:top_lib",
     "//hw/top:uart_c_regs",
     "//sw/device/lib/base:multibits",
@@ -818,6 +820,15 @@ opentitan_test(
     ),
     deps = CHERIOT_SMOKETEST_DEPS,
 )
+
+opentitan_test(
+    name = "cheriot_tbre_revocation_test",
+    srcs = ["cheriot_tbre_revocation_test.S"],
+    exec_env = CHERIOT_SMOKETEST_ENVS,
+    platform = CHERIOT_PLATFORM,
+    deps = CHERIOT_SMOKETEST_DEPS,
+)
+
 
 opentitan_test(
     name = "chip_power_idle_load_test",
