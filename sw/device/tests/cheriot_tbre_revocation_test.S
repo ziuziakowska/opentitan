@@ -4,20 +4,29 @@
 
 #include "sw/device/lib/base/multibits_asm.h"
 #include "hw/top/cheriot_regs.h" // Generated.
-#include "hw/top/rv_core_ibex_regs.h"  // Generated.
+#include "hw/top/rv_core_ibex_regs.h" // Generated.
 #include "hw/top/sram_ctrl_regs.h" // Generated.
 #include "hw/top/top_memory.h" // Generated.
 
 #define DV_STATUS_IN_TEST 0x4354
-#define DV_STATUS_PASSED 0x900d
-#define DV_STATUS_FAILED 0xbaad
+#define DV_STATUS_PASSED  0x900d
+#define DV_STATUS_FAILED  0xbaad
+
+#define TOP_CHERIOT_REVBM_SIZE_WORDS (TOP_CHERIOT_REVBM_SIZE_BYTES >> 2)
+
+#define CAPABILITY_SIZE_BYTES   8
+#define CAPABILITIES_PER_REGION (256 / CAPABILITY_SIZE_BYTES)
+
+#if !defined(TEST_ITERATION_COUNT)
+#error "TEST_ITERATION_COUNT" must be defined with the number of iterations to run.
+#endif
 
   .section .crt, "ax", @progbits
   .balign 4
   .globl _ottf_start
   .type _ottf_start, @function
 _ottf_start:
-.L_cheriot_header:
+cheriot_header:
   .option push
   .option norvc
   .option norelax
@@ -30,273 +39,280 @@ _ottf_start:
   fence.i
 
   .option pop
-.L_cheriot_start: // In CHERIoT Mode now.
+cheriot_start:
+  // In CHERIoT mode now.
   cspecialr a0, mtdc
   li        a1, TOP_RV_CORE_IBEX_CFG_BASE_ADDR
   csetaddr  ca1, ca0, a1
   li        a2, DV_STATUS_IN_TEST
   sw        a2, RV_CORE_IBEX_DV_SIM_WINDOW_REG_OFFSET(a1)
 
+meta_sram_init:
   li        a1, TOP_SRAM_CTRL_META_REGS_BASE_ADDR
   csetaddr  ca1, ca0, a1
   li        a2, (1 << SRAM_CTRL_CTRL_INIT_BIT)
   sw        a2, SRAM_CTRL_CTRL_REG_OFFSET(a1)
-.L_sram_init:
+meta_sram_init_loop:
   lw        a2, SRAM_CTRL_STATUS_REG_OFFSET(a1)
   andi      a2, a2, (1 << SRAM_CTRL_STATUS_INIT_DONE_BIT)
-  beqz      a2, .L_sram_init
+  beqz      a2, meta_sram_init_loop
 
-  // Test.
-  // Set up 2 regions of SRAM: A, B
-  // A: Valid capabilities that point into B.
-  // B: Arbitrary data.
+init_prng:
+  // Xorshift32 PRNG requires non-zero seed value.
+  li a5, 1
 
-#define REGION_SIZE (8 * 128)
-// 1 revocation bit per 8 Bytes = 256 Bytes per 32-bit register -> >> 6.
-#define REGION_REVOCATON_SHIFT 6
-  cspecialr a0, mtdc
-  lui       a1, %hi(_data_start)
-  addi      a1, a1, %lo(_data_start)
-  csetaddr  ca0, ca0, a1
-  li        a2, REGION_SIZE
-  add       a1, a1, a2
-  csetaddr  ca1, ca0, a1
-  // ca0 (A): [ .data, .data + REGION_SIZE)
-  // ca1 (B): [ .data + REGION_SIZE, .data + (2 * REGION_SIZE))
-.L_init_loop:
-  // Loop that initialises regions A and B.
-  // ca0 and ca1 sweep through their REGION_SIZE-sized regions.
-  // ct0 stores a capability to write to region A, which points into
-  // region B, at the same offset in both regions.
-  // The capability stored in region B is the null capability.
-  beqz a2, .L_init_loop_done
-  csetaddr      ct0, ca0, a1
-  csetboundsimm ct0, ct0, 8
-  sc            ct0, 0(ca0)
-  sc            czero, 0(ca1)
-  // Increment and loop again.
-  cincoffsetimm ca0, ca0, 8
-  cincoffsetimm ca1, ca1, 8
-  addi          a2, a2, -8
-  j .L_init_loop
-.L_init_loop_done:
-  // Re-materialise.
-  cspecialr a0, mtdc
-  lui       a1, %hi(_data_start)
-  addi      a1, a1, %lo(_data_start)
-  csetaddr  ca0, ca0, a1
-  li        a2, REGION_SIZE
-  add       a1, a1, a2
-  csetaddr  ca1, ca0, a1
+init_test_loop:
+  // Load the iteration counter.
+  li a4, TEST_ITERATION_COUNT
 
-.L_tag_check_loop:
-  // Check that all tags are set in region A, and no tags are set in region B.
-  beqz a2, .L_tag_check_loop_done
-  lc   ct0, 0(ca0)
-  lc   ct1, 0(ca1)
-  cgettag t0, t0
-  cgettag t1, t1
-  beqz t0, .L_failure
-  bnez t1, .L_failure
-  // Increment and loop again.
-  cincoffsetimm ca0, ca0, 8
-  cincoffsetimm ca1, ca1, 8
-  addi a2, a2, -8
-  j .L_tag_check_loop
-.L_tag_check_loop_done:
+  j test_loop
 
-  cspecialr a0, mtdc
-  lui a1, %hi(TOP_CHERIOT_REVBM_BASE_ADDR)
-  addi a1, a1, %lo(TOP_CHERIOT_REVBM_BASE_ADDR)
-  li  a2, REGION_SIZE
-  srai a2, a2, REGION_REVOCATON_SHIFT // words left to revoke
-  add a1, a1, a2
-  csetaddr ca0, ca0, a1
-  // Revoke loop.
-  li a3, -1
-.L_revoke_loop:
-  beqz a2, .L_revoke_loop_done
-  sw   a3, 0(ca0)
-  cincoffsetimm ca0, ca0, 4
-  addi a2, a2, -4
-  j .L_revoke_loop
-.L_revoke_loop_done:
+prng:
+  // Step the Xorshift32 PRNG state in register a5.
+  // Clobbers: t0.
+  //
+  // Equivalent C code:
+  // x ^= x << 13;
+  // x ^= x >> 17;
+  // x ^= x << 5;
+  slli t0, a5, 13
+  xor  a5, a5, t0
+  srli t0, a5, 17
+  xor  a5, a5, t0
+  slli t0, a5, 5
+  xor  a5, a5, t0
+  cret
 
-  // Re-materialise.
-  cspecialr a0, mtdc
-  lui       a1, %hi(_data_start)
-  addi      a1, a1, %lo(_data_start)
-  csetaddr  ca0, ca0, a1
-  li        a2, REGION_SIZE
-  add       a1, a1, a2
-  csetaddr  ca1, ca0, a1
+  // This test tests the revocation bitmap and the revocation engine (TBRE).
+  // The test works as follows:
+  //
+  // In each iteration, the test chooses two 256-byte aligned regions of SRAM - A and B.
+  // Region B simulates a "heap", from which memory is "allocated" from to region A.
+  // Region A is filled with capabilities that point into region B, which simulates
+  // memory allocations.
+  //
+  // The first capability in region A points to the first 8 bytes of region B,
+  // the next capability in region A points to the next 8 bytes of region B, and so on.
+  //
+  // In each iteration, a random bit-pattern is written to the revocation bitmap
+  // word corresponding to region B in SRAM. The tag bits of the capabilities in
+  // region A should be the negation of the revocation bit-pattern.
+  //
+  // Region B revocation bits (REVBM, 4B)
+  //          +----------+----------+----------+----------+
+  //          |    1     |    0     |   ....   |    0     |
+  //          +----------+----------+----------+----------+
+  // Region B (SRAM, 256B)
+  //          +----------+----------+----------+----------+
+  //          |    8B    |    8B    |   ....   |    8B    |
+  //          +----------+----------+----------+----------+
+  //               ^          ^          ^          ^
+  // Region A (SRAM, 256B)    |          |          |
+  //          +----------+----------+----------+----------+
+  //          |   Cap    |   Cap    |   ....   |   Cap    |
+  //          +----------+----------+----------+----------+
+  // Region A tags
+  //          +----------+----------+----------+----------+
+  //          |    0     |    1     |   ....   |    1     |
+  //          +----------+----------+----------+----------+
+  //
+  // If the revocation word is cleared, the tags in region A should all be observed
+  // to be set again, indicating that the revocation bitmap correctly inhibited the tags.
+  //
+  // The same revocation bit-pattern is then written again, and the revocation engine
+  // is used on the capabilities in region A. After the revocation pass is completed
+  // and the revocation bitmap is cleared, the capability tags in region A corresponding
+  // to the set bits of the revocation bit-pattern should be cleared.
+test_loop:
+  beqz a4, success
 
-.L_tag_check_after_revoke_loop:
-  // Check that all tags are set in region A, and no tags are set in region B.
-  beqz a2, .L_tag_check_after_revoke_loop_done
-  lc   ct0, 0(ca0)
-  lc   ct1, 0(ca1)
-  cgettag t0, t0
-  cgettag t1, t1
-  bnez t0, .L_failure
-  bnez t1, .L_failure
-  // Increment and loop again.
-  cincoffsetimm ca0, ca0, 8
-  cincoffsetimm ca1, ca1, 8
-  addi a2, a2, -8
-  j .L_tag_check_after_revoke_loop
-.L_tag_check_after_revoke_loop_done:
+  // Pick two regions, A and B, for each iteration of the test.
+  //
+  // a3: 256-byte aligned address of region A in SRAM.
+  // a2: 256-byte aligned address of region B in SRAM.
+  // a1: 4-byte aligned address of revocation bits spanning region B in revocation bitmap.
+test_pick_regions:
+  ccall prng
+  li    t0, TOP_CHERIOT_REVBM_SIZE_WORDS
+  mulhu a3, a5, t0
+  ccall prng
+  li    t0, TOP_CHERIOT_REVBM_SIZE_WORDS
+  mulhu a2, a5, t0
+  beq   a2, a3, test_pick_regions // Try again if the same word is chosen for both regions.
 
-  cspecialr a0, mtdc
-  lui a1, %hi(TOP_CHERIOT_REVBM_BASE_ADDR)
-  addi a1, a1, %lo(TOP_CHERIOT_REVBM_BASE_ADDR)
-  li  a2, REGION_SIZE
-  srai a2, a2, REGION_REVOCATON_SHIFT // words left to unrevoke
-  add a1, a1, a2
-  csetaddr ca0, ca0, a1
-  // Un-revoke loop.
-.L_unrevoke_loop:
-  beqz a2, .L_unrevoke_loop_done
-  sw   zero, 0(ca0)
-  cincoffsetimm ca0, ca0, 4
-  addi a2, a2, -4
-  j .L_unrevoke_loop
-.L_unrevoke_loop_done:
+  // Region A: [0, REVBM_SIZE_WORDS) revocation bitmap word number
+  //    << 8 = [0, MAIN_RAM_SIZE_BYTES) SRAM byte offset of 256-byte region.
+  slli a3, a3, 8
+  li   t0, TOP_SRAM_CTRL_MAIN_RAM_BASE_ADDR
+  //        -> [MAIN_RAM_BASE, MAIN_RAM_BASE+MAIN_RAM_SIZE_BYTES) SRAM address.
+  add  a3, a3, t0
 
-  // Re-materialise.
-  cspecialr a0, mtdc
-  lui       a1, %hi(_data_start)
-  addi      a1, a1, %lo(_data_start)
-  csetaddr  ca0, ca0, a1
-  li        a2, REGION_SIZE
-  add       a1, a1, a2
-  csetaddr  ca1, ca0, a1
+  // Region B: [0, REVBM_SIZE_WORDS) revocation bitmap word number
+  //    << 2 = [0, REVBM_SIZE_BYTES) revocation bitmap byte offset of word.
+  slli a1, a2, 2
+  li   t0, TOP_CHERIOT_REVBM_BASE_ADDR
+  //        -> [REVBM_BASE+0, REVBM_BASE+REVBM_SIZE_BYTES) revocation bitmap address.
+  add  a1, a1, t0
 
-.L_tag_check_again_loop:
-  // Check that no tags are set in either region.
-  beqz a2, .L_tag_check_again_loop_done
-  lc   ct0, 0(ca0)
-  lc   ct1, 0(ca1)
-  cgettag t0, t0
-  cgettag t1, t1
-  beqz t0, .L_failure
-  bnez t1, .L_failure
-  // Increment and loop again.
-  cincoffsetimm ca0, ca0, 8
-  cincoffsetimm ca1, ca1, 8
-  addi a2, a2, -8
-  j .L_tag_check_again_loop
-.L_tag_check_again_loop_done:
+  //    << 8 = [0, MAIN_RAM_SIZE_BYTES) SRAM byte offset of 256-byte region.
+  slli a2, a2, 8
+  li   t0, TOP_SRAM_CTRL_MAIN_RAM_BASE_ADDR
+  //        -> [MAIN_RAM_BASE, MAIN_RAM_BASE+MAIN_RAM_SIZE_BYTES) SRAM address.
+  add  a2, a2, t0
 
-  cspecialr a0, mtdc
-  lui a1, %hi(TOP_CHERIOT_REVBM_BASE_ADDR)
-  addi a1, a1, %lo(TOP_CHERIOT_REVBM_BASE_ADDR)
-  li  a2, REGION_SIZE
-  srai a2, a2, REGION_REVOCATON_SHIFT // words left to revoke
-  add a1, a1, a2
-  csetaddr ca0, ca0, a1
-  // Revoke loop.
-  li a3, -1
-.L_revoke_again_loop:
-  beqz a2, .L_revoke_again_loop_done
-  sw   a3, 0(ca0)
-  cincoffsetimm ca0, ca0, 4
-  addi a2, a2, -4
-  j .L_revoke_again_loop
-.L_revoke_again_loop_done:
+  // a0: Random byte offset within 8-byte revocation region.
+  ccall prng
+  andi  a0, a5, 7
 
-  // Now engage the TBRE.
-  cspecialr a0, mtdc
-  lui       a1, %hi(TOP_CHERIOT_REGS_BASE_ADDR)
-  addi      a1, a1, %lo(TOP_CHERIOT_REGS_BASE_ADDR)
-  csetaddr  ca1, ca0, a1
-  lui       a2, %hi(_data_start)
-  addi      a2, a2, %lo(_data_start)
-  sw        a2, CHERIOT_TBRE_BASE_ADDR_REG_OFFSET(a1)
-  li        a2, REGION_SIZE
-  srai      a2, a2, 3
-  sw        a2, CHERIOT_TBRE_NUM_CAPS_REG_OFFSET(a1)
-  li        a2, (1 << CHERIOT_TBRE_START_START_BIT)
-  sw        a2, CHERIOT_TBRE_START_REG_OFFSET(a1)
-  // a2 persists as 1 - busy bit
-.L_revocation_engine_poll:
-  // Poll TBRE_STATUS every 32 instructions,
-  // to not put additional pressure on the
-  // LSU, which the TBRE re-uses.
+  cspecialr s0, mtdc
+
+test_init_regions:
+  // Write region A with capabilities that point to region B.
+  csetaddr   ct0, s0, a3 // t0: pointer to current capability to write in region A.
+  csetaddr   ct1, s0, a2 // t1: current capability's target address in region B.
+  .rep CAPABILITIES_PER_REGION
+  cmove         ct2, ct1
+  csetboundsimm ct2, ct2, 8
+  cincoffset    ct2, ct2, a0 // randomised offset.
+  sc            czero, 0(ct1)
+  sc            ct2, 0(ct0)
+  cincoffsetimm ct0, ct0, CAPABILITY_SIZE_BYTES
+  cincoffsetimm ct1, ct1, CAPABILITY_SIZE_BYTES
+  .endr
+  fence
+
+test_check_init_tags:
+  // Test that all tags are set in region A, and none are set in region B.
+  csetaddr ct0, s0, a3
+  csetaddr ct1, s0, a2
+  .rep CAPABILITIES_PER_REGION
+  lc            ct2, 0(ct0)
+  cgettag       t2, t2
+  beqz          t2, failure
+  lc            ct2, 0(ct1)
+  cgettag       t2, t2
+  bnez          t2, failure
+  cincoffsetimm ct0, ct0, CAPABILITY_SIZE_BYTES
+  cincoffsetimm ct1, ct1, CAPABILITY_SIZE_BYTES
+  .endr
+
+  // a0: Random revocation bitmap value.
+  ccall prng
+  mv    a0, a5
+
+test_check_revocation_bitmap_works:
+  // Write the random revocation bitmap value to the revocation bitmap
+  // address corresponding to region B.
+  csetaddr ct0, s0, a1
+  sw       a0, 0(ct0)
+  fence
+  // Now, sweep through region A and read all the tags.
+  // Where the revocation had a bit set, the capability in region A should
+  // have a cleared tag, because the corresponding region of B has been revoked.
+  csetaddr ct0, s0, a3
+  // Negation of written revocation bitmap value = state of tag bits.
+  not      t1, a0
+  .rep CAPABILITIES_PER_REGION
+  lc            ct2, 0(ct0)
+  cgettag       t2, t2
+  andi          tp, t1, 1
+  bne           tp, t2, failure
+  srli          t1, t1, 1
+  cincoffsetimm ct0, ct0, CAPABILITY_SIZE_BYTES
+  .endr
+
+  // Unrevoke the region.
+  csetaddr ct0, s0, a1
+  sw       zero, 0(ct0)
+  fence
+
+test_check_tags_again:
+  // Check that tags in region A appear set once again,
+  // showing that they were just masked by the revocation bitmap.
+  // Tags in region B should still be unset.
+  csetaddr ct0, s0, a3
+  csetaddr ct1, s0, a2
+  .rep CAPABILITIES_PER_REGION
+  lc            ct2, 0(ct0)
+  cgettag       t2, t2
+  beqz          t2, failure
+  lc            ct2, 0(ct1)
+  cgettag       t2, t2
+  bnez          t2, failure
+  cincoffsetimm ct0, ct0, CAPABILITY_SIZE_BYTES
+  cincoffsetimm ct1, ct1, CAPABILITY_SIZE_BYTES
+  .endr
+
+test_run_revocation_engine:
+  // Write the random revocation bitmap value to the revocation bitmap
+  // address corresponding to region B again.
+  csetaddr ct0, s0, a1
+  sw       a0, 0(ct0)
+  fence
+  // Now use the TBRE to revoke capabilities in region A.
+  li       t0, TOP_CHERIOT_REGS_BASE_ADDR
+  csetaddr ct0, s0, t0
+  sw       a3, CHERIOT_TBRE_BASE_ADDR_REG_OFFSET(t0)
+  li       t1, CAPABILITIES_PER_REGION
+  sw       t1, CHERIOT_TBRE_NUM_CAPS_REG_OFFSET(t0)
+  li       t1, (1 << CHERIOT_TBRE_START_START_BIT)
+  sw       t1, CHERIOT_TBRE_START_REG_OFFSET(t0)
+  li       t1, (1 << CHERIOT_TBRE_STATUS_BUSY_BIT)
+revocation_engine_poll:
+  // Poll TBRE_STATUS until the revocation engine has finished.
+  // Since the revocation engine re-uses the LSU, only check the
+  // register every 32 instructions to allow the revocation engine
+  // to use the LSU uncontended.
   .rep (32 - 3)
   nop
   .endr
-  lw        a3, CHERIOT_TBRE_STATUS_REG_OFFSET(a1)
-  and       a3, a3, a2
-  bnez      a3, .L_revocation_engine_poll
-.L_revocation_engine_poll_done:
-  lw        a3, CHERIOT_TBRE_STATUS_REG_OFFSET(a1)
-  li        a2, ~(1 << CHERIOT_TBRE_STATUS_BUSY_BIT)
-  andi      a3, a3, ~(1 << CHERIOT_TBRE_STATUS_BUSY_BIT)
-  bnez      a3, .L_failure
+  lw   t2, CHERIOT_TBRE_STATUS_REG_OFFSET(t0)
+  and  t2, t2, t1
+  bnez t2, revocation_engine_poll
+revocation_engine_poll_done:
+  // Check no errors occurred in the revocation engine.
+  lw   t2, CHERIOT_TBRE_STATUS_REG_OFFSET(t0)
+  andi t2, t2, ~(1 << CHERIOT_TBRE_STATUS_BUSY_BIT)
+  bnez t2, failure
+  // Clear the revocation bitmap after the region has been revoked.
+  csetaddr ct0, s0, a1
+  sw       zero, 0(ct0)
+  fence
 
-  // Clear the revocation bitmap after it has ran.
-  // Re-materialise
-  cspecialr a0, mtdc
-  lui a1, %hi(TOP_CHERIOT_REVBM_BASE_ADDR)
-  addi a1, a1, %lo(TOP_CHERIOT_REVBM_BASE_ADDR)
-  li  a2, REGION_SIZE
-  srai a2, a2, REGION_REVOCATON_SHIFT // words left to check
-  add a1, a1, a2
-  csetaddr ca0, ca0, a1
-  // Clear bitmap
-.L_check_loop:
-  beqz a2, .L_check_loop_done
-  sw   zero, 0(ca0)
-  cincoffsetimm ca0, ca0, 4
-  addi a2, a2, -4
-  j .L_check_loop
-.L_check_loop_done:
+test_check_tags_after_revocation_engine:
+  csetaddr ct0, s0, a3
+  // Negation of written revocation bitmap value = state of tag bits.
+  not      t1, a0
+  .rep CAPABILITIES_PER_REGION
+  lc            ct2, 0(ct0)
+  cgettag       t2, t2
+  andi          tp, t1, 1
+  bne           tp, t2, failure
+  srli          t1, t1, 1
+  cincoffsetimm ct0, ct0, CAPABILITY_SIZE_BYTES
+  .endr
 
-  // Re-materialise.
-  cspecialr a0, mtdc
-  lui       a1, %hi(_data_start)
-  addi      a1, a1, %lo(_data_start)
-  csetaddr  ca0, ca0, a1
-  li        a2, REGION_SIZE
-  add       a1, a1, a2
-  csetaddr  ca1, ca0, a1
+test_iteration_done:
+  // Success, onto the next iteration.
+  addi a4, a4, -1
+  j test_loop
 
-.L_tag_check_after_revocation_engine_loop:
-  // Check that no tags are set.
-  beqz a2, .L_tag_check_after_revocation_engine_loop_done
-  lc   ct0, 0(ca0)
-  lc   ct1, 0(ca1)
-  cgettag t0, t0
-  cgettag t1, t1
-  bnez t0, .L_failure
-  bnez t1, .L_failure
-  // Increment and loop again.
-  cincoffsetimm ca0, ca0, 8
-  cincoffsetimm ca1, ca1, 8
-  addi a2, a2, -8
-  j .L_tag_check_after_revocation_engine_loop
-.L_tag_check_after_revocation_engine_loop_done:
-
-  // Fallthrough, success
-  j .L_success
-
-.L_success:
+success:
   cspecialr a0, mtdc
   lui       a1, %hi(TOP_RV_CORE_IBEX_CFG_BASE_ADDR)
   addi      a1, a1, %lo(TOP_RV_CORE_IBEX_CFG_BASE_ADDR)
   csetaddr  ca0, ca0, a1
   li        a2, DV_STATUS_PASSED
   sw        a2, RV_CORE_IBEX_DV_SIM_WINDOW_REG_OFFSET(a0)
-  j .L_park
-.L_failure:
+  j park
+failure:
   cspecialr a0, mtdc
   lui       a1, %hi(TOP_RV_CORE_IBEX_CFG_BASE_ADDR)
   addi      a1, a1, %lo(TOP_RV_CORE_IBEX_CFG_BASE_ADDR)
   csetaddr  ca0, ca0, a1
   li        a2, DV_STATUS_FAILED
   sw        a2, RV_CORE_IBEX_DV_SIM_WINDOW_REG_OFFSET(a0)
-  j .L_park
-.L_park:
+  j park
+park:
   wfi
-  j .L_park
+  j park

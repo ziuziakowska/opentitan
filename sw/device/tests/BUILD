@@ -824,11 +824,14 @@ opentitan_test(
 opentitan_test(
     name = "cheriot_tbre_revocation_test",
     srcs = ["cheriot_tbre_revocation_test.S"],
+    dv = dv_params(
+        defines = ["DV_TEST_STATUS"],
+    ),
+    local_defines = ["TEST_ITERATION_COUNT=128"],
     exec_env = CHERIOT_SMOKETEST_ENVS,
     platform = CHERIOT_PLATFORM,
     deps = CHERIOT_SMOKETEST_DEPS,
 )
-
 
 opentitan_test(
     name = "chip_power_idle_load_test",
