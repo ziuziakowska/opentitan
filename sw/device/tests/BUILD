@@ -834,6 +834,17 @@ opentitan_test(
 )
 
 opentitan_test(
+    name = "cheriot_freeze",
+    srcs = ["cheriot_freeze.S"],
+    dv = dv_params(
+        defines = ["DV_TEST_STATUS"],
+    ),
+    exec_env = CHERIOT_SMOKETEST_ENVS,
+    platform = CHERIOT_PLATFORM,
+    deps = CHERIOT_SMOKETEST_DEPS,
+)
+
+opentitan_test(
     name = "chip_power_idle_load_test",
     srcs = ["chip_power_idle_load_test.c"],
     exec_env = dicts.add(
