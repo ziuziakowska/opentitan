@@ -761,6 +761,8 @@ opentitan_test(
 
 CHERIOT_SMOKETEST_DEPS = [
     "//hw/top:rv_core_ibex_c_regs",
+    "//hw/top:cheriot_mem_sys_c_regs",
+    "//hw/top:sram_ctrl_c_regs",
     "//hw/top:top_lib",
     "//hw/top:uart_c_regs",
     "//sw/device/lib/base:multibits",
@@ -815,6 +817,21 @@ opentitan_test(
     verilator = verilator_params(
         exit_failure = CHERIOT_SMOKETEST_FAILURE,
         exit_success = "ePMP PASS!\r\n",
+    ),
+    deps = CHERIOT_SMOKETEST_DEPS,
+)
+
+opentitan_test(
+    name = "cheriot_something_test",
+    srcs = ["cheriot_something_test.S"],
+    dv = dv_params(
+        defines = ["DV_TEST_STATUS"],
+    ),
+    exec_env = CHERIOT_SMOKETEST_ENVS,
+    platform = CHERIOT_PLATFORM,
+    verilator = verilator_params(
+        exit_failure = "FAIL!\r\n",
+        exit_success = "PASS!\r\n",
     ),
     deps = CHERIOT_SMOKETEST_DEPS,
 )
