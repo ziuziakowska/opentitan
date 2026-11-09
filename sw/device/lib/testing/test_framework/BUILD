@@ -26,6 +26,14 @@ filegroup(
     ]),
 )
 
+# Header-only view of `status.h` (the `test_status_t` values), without the
+# `status.c` implementation and its dependencies.
+cc_library(
+    name = "status_types",
+    hdrs = ["status.h"],
+    target_compatible_with = [OPENTITAN_CPU],
+)
+
 cc_library(
     name = "status",
     srcs = ["status.c"],

@@ -782,9 +782,21 @@ CHERIOT_SMOKETEST_FAILURE = "FAIL |[RC]TRAP "
 opentitan_test(
     name = "cheriot_something",
     srcs = ["cheriot_something.S", "cheriot_main.c"],
+    # Without sub-object bounds the compiler folds offsets into relocation
+    # addends and lld drops them on CGP-relative accesses.
+    copts = [
+        "-Xclang",
+        "-cheri-bounds=subobject-safe",
+    ],
+    dv = dv_params(
+        defines = ["DV_TEST_STATUS"],
+    ),
     exec_env = CHERIOT_SMOKETEST_ENVS,
     platform = CHERIOT_PLATFORM,
-    deps = CHERIOT_SMOKETEST_DEPS,
+    deps = CHERIOT_SMOKETEST_DEPS + [
+        "//hw/top:sram_ctrl_c_regs",
+        "//sw/device/lib/testing/test_framework:status_types",
+    ],
 )
 
 opentitan_test(

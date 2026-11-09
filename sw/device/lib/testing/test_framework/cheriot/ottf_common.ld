@@ -122,8 +122,20 @@ SECTIONS {
     *(.text)
     *(.text.*)
 
-    /* Ensure section end is word-aligned. */
-    . = ALIGN(4);
+    /**
+     * Read-only data lives in this executable output section, not its own:
+     * lld resolves a CHERIoT relocation PCC-relative iff the target's output
+     * section is executable, and CGP-relative (i.e. into the data region)
+     * otherwise. PCC therefore covers [_text_start, _text_end) = code + rodata.
+     */
+    . = ALIGN(8);
+    *(.srodata)
+    *(.srodata.*)
+    *(.rodata)
+    *(.rodata.*)
+
+    /* Ensure section end is capability-aligned. */
+    . = ALIGN(8);
   } > ottf_nvm
 
   /**
@@ -140,21 +152,7 @@ SECTIONS {
     _text_end = .;
   } > ottf_nvm
 
-  /**
-   * Read-only data section, containing all large compile-time constants, like
-   * strings.
-   */
-  .rodata : ALIGN(8) {
-    /**
-     * Small read-only data comes before regular read-only data for the same
-     * reasons as in the data section.
-     */
-    *(.srodata)
-    *(.srodata.*)
-    *(.rodata)
-    *(.rodata.*)
-
-  } > ottf_nvm
+  /* Read-only data is part of the `.text` output section, see above. */
 
   /**
    * Bounds and permissions for each static capability, to be materialised by
@@ -172,7 +170,7 @@ SECTIONS {
    * Standard mutable data section, at the bottom of RAM. This will be
    * initialized from the .idata section at runtime by the CRT.
    */
-  .data : ALIGN(8) {
+  .data : CAPALIGN {
     _data_start = .;
     _data_init_start = LOADADDR(.data);
 
@@ -203,27 +201,17 @@ SECTIONS {
     *(.data)
     *(.data.*)
 
-    /* Ensure section end is word-aligned. */
-    . = ALIGN(4);
+    /* Ensure section end is capability-aligned. */
+    . = ALIGN(8);
     _data_end = .;
-    _data_init_end = LOADADDR(.data) + SIZEOF(.data);
+    _data_init_end = LOADADDR(.data) + (_data_end - _data_start);
 
     /**
-     * This puts it in ram_main at runtime (for the VMA), but puts the section
-     * into NVM for load time (for the LMA). This is why `_data_init_*` uses
-     * `LOADADDR`.
-     *
-     * Using `AT>` means we don't have to keep track of the next free part of
-     * NVM, as we do in our other linker scripts.
+     * Standard BSS, zeroed at runtime by the CRT. It is in the SAME output
+     * section as `.data` because CHERIoT `cgp` is the midpoint of the output
+     * section holding the accessed symbol: all globals must share one. As a
+     * consequence the zeros of `.bss` also occupy NVM after the `.data` image.
      */
-  } > ram_main AT> ottf_nvm :data_segment
-
-  __global_pointer$ = ADDR(.data) + (SIZEOF(.data) / 2);
-
-  /**
-   * Standard BSS section. This will be zeroed at runtime by the CRT.
-   */
-  .bss : ALIGN(8) {
     _bss_start = .;
 
     /**
@@ -235,10 +223,23 @@ SECTIONS {
     *(.bss)
     *(.bss.*)
 
-    /* Ensure section end is word-aligned. */
-    . = ALIGN(4);
+    /* Ensure section end is capability-aligned. */
+    . = ALIGN(8);
     _bss_end = .;
-  } > ram_main
+
+    /**
+     * This puts it in ram_main at runtime (for the VMA), but puts the section
+     * into NVM for load time (for the LMA). This is why `_data_init_*` uses
+     * `LOADADDR`.
+     *
+     * Using `AT>` means we don't have to keep track of the next free part of
+     * NVM, as we do in our other linker scripts.
+     */
+  } > ram_main AT> ottf_nvm :data_segment
+
+  /* Size of the `cgp` region (padded by CAPALIGN), for `csetboundsexact`. */
+  _globals_size = SIZEOF(.data);
+  __global_pointer$ = ADDR(.data) + (SIZEOF(.data) / 2);
 
   /**
    * FreeRTOS heap (for OTTF).
