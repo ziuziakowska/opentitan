@@ -1,0 +1,90 @@
+/* Copyright lowRISC contributors (OpenTitan project). */
+/* Licensed under the Apache License, Version 2.0, see LICENSE for details. */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/**
+ * Linker script of a CHERIoT RTOS image that OpenTitan's test framework boots.
+ *
+ * `util/cheriot_image_ld.py` fills in the `@...@` tokens: the NVM slot the image
+ * is stored in (`@rom_origin@`, `@rom_size@`), and the RTOS's own sections,
+ * which replace the OTTF's: everything that the OTTF's script places (C runtime,
+ * vectors, `.text`, `.rodata`, `.data`, `.bss`) is instead laid out by the
+ * RTOS's templates. The image runs from RAM; the entry point is the address in
+ * NVM of its first instruction, which copies the image to RAM. What the test tooling
+ * reads from the ELF is kept: the manifest and the symbols that describe it, and
+ * the info sections.
+ *
+ * There is deliberately no `MEMORY` command: see the generator.
+ */
+
+ENTRY(_ottf_start)
+
+PHDRS {
+  manifest_segment PT_LOAD;
+  rtos_image PT_LOAD;
+}
+
+/**
+ * DV Log offset (see `ottf_common.ld`).
+ */
+_dv_log_offset = 0x10000;
+
+/**
+ * Where the image starts, and how much room it has; the manifest comes first.
+ */
+_ottf_start_address = @rom_origin@;
+_ottf_size = @rom_size@;
+
+/**
+ * The entry point is the first instruction of the RTOS loader, as stored in NVM
+ * (the image's address in RAM is where it runs). The signer tool copies it to
+ * the manifest.
+ */
+_ottf_start = LOADADDR(.loader_code_persistent);
+
+@image@
+
+/**
+ * The manifest, which the image's own sections must precede in this script: lld
+ * lays the file out in script order and cannot follow an address that is higher
+ * than those of the sections after it (the image runs from RAM, below the NVM).
+ * It has its own load address: it would otherwise inherit the image's offset.
+ */
+SECTIONS {
+  .manifest _ottf_start_address : AT(_ottf_start_address) {
+    KEEP(*(.manifest))
+    . = ALIGN(4);
+  } :manifest_segment
+}
+
+/**
+ * The extent of the code that the manifest describes: everything the loader,
+ * the switcher and the compartments execute.
+ */
+_text_start = _ottf_start;
+_text_end = _ottf_start + (__image_end - __image_start);
+_manifest_code_start = _text_start - _ottf_start_address;
+_manifest_code_end = _text_end - _ottf_start_address;
+_manifest_entry_point = ABSOLUTE(_ottf_start - _ottf_start_address);
+
+/**
+ * The value kHardenedBoolFalse (0x1d4): the code is linked in the NVM region.
+ */
+_manifest_address_translation = 0x1d4;
+
+/**
+ * Only the manifest is wanted from the OpenTitan libraries that come with it:
+ * the RTOS's scripts need garbage collection off, so nothing else of theirs may
+ * be left in the image. Everything above has already claimed its input sections
+ * (the first statement to match one wins), so what is left is theirs.
+ */
+SECTIONS {
+  /DISCARD/ : {
+    *(.text .text.* .rodata .rodata.* .srodata .srodata.*)
+    *(.data .data.* .sdata .sdata.* .bss .bss.* .sbss .sbss.*)
+  }
+}
+
+SECTIONS {
+  INCLUDE sw/device/info_sections.ld
+}

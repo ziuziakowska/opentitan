@@ -1,0 +1,251 @@
+#include <compartment-macros-asm.S>
+#include <cheri-builtins.h>
+#include "../allocator/token.h"
+
+.include "assembly-helpers.s"
+
+	.hidden __sealingkey_either
+	.type   __sealingkey_either,@object
+	.section    .sealing_key1,"aw",@progbits
+	.globl  __sealingkey_either
+	.p2align    3
+__sealingkey_either:
+	.chericap   0
+	.size   __sealingkey_either, 8
+
+	.hidden __sealingkey_static
+	.type   __sealingkey_static,@object
+	.section    .sealing_key2,"aw",@progbits
+	.globl  __sealingkey_static
+	.p2align    3
+__sealingkey_static:
+	.chericap   0
+	.size   __sealingkey_static, 8
+
+	.hidden __sealingkey_dynamic
+	.type   __sealingkey_dynamic,@object
+	.section    .sealing_key3,"aw",@progbits
+	.globl  __sealingkey_dynamic
+	.p2align    3
+__sealingkey_dynamic:
+	.chericap   0
+	.size   __sealingkey_dynamic, 8
+
+.section .text,"ax",@progbits
+
+.p2align 1
+
+/**
+ * The core of unsealing:
+ *
+ *   void *token_unseal_internal(
+ *     struct TokenKey * tokenKey,
+ *     struct TokenObject __sealed_capability * objectPointer,
+ *     struct TokenKey * architectureKey);
+ *
+ * Recall from core/allocator/token.h that the `objectPointer` given is such
+ * that its address is one-past-the-end of a TokenObjectHeader structure.
+ */
+.Ltoken_unseal_internal:
+  /*
+   * Register allocation:
+   *
+   *  - ca0 holds the user's sealing key, and is replaced with the unsealed
+   *    value or NULL
+   *
+   *  - ca1 holds the user's sealed object pointer
+   *
+   *  - ca2 holds the unsealing authority and is clobbered on failure
+   *    explicitly and on success with a scalar (the sealed payload's length)
+   *
+   *  - a3 is used within each local computation and never holds secrets
+   */
+
+  /* Verify key tag */
+  cgettag a3, ca0
+  beqz    a3, .Lexit_failure
+
+  /* Verify key address == base and len > 0 */
+  cgetbase a3, ca0
+  bne      a0, a3, .Lexit_failure // as-integer access to ca0 gives address
+  cgetlen  a3, ca0
+  beqz     a3, .Lexit_failure
+
+  /* Verify key has unseal permission */
+  cgetperm a3, ca0
+  andi     a3, a3, CHERI_PERM_UNSEAL
+  beqz     a3, .Lexit_failure
+
+  /* Unseal, clobbering authority */
+  cunseal ca2, ca1, ca2
+  // Clear the low 3 bits.
+  cgetaddr a1, ca2
+  andi     a1, a1, ~0x7
+  csetaddr ca2, ca2, a1
+
+  /* Verify tag of unsealed form */
+  cgettag a3, ca2
+  beqz    a3, .Lexit_failure
+
+  /*
+   * Load software type tag.  This will not trap, thanks to above tag check and
+   * because IRQs are deferred (see our export entry below), unless the
+   * loader (static objects) or allocator (dynamic) are malicious and/or buggy.
+   *
+   * Note the negative displacement from ca2's cursor.
+   */
+  clw a3, (TokenObjectHeader_offset_type - TokenObjectHeader_size)(ca2)
+
+  /* Verify that the loaded value matches the address of the key. */
+  bne a0, a3, .Lexit_failure
+
+  /* Subset bounds to ->data; a2 is already pointing there */
+  // Get the top into a3
+  cgettop         a3, ca2
+  cmove           ca0, ca2
+  // Subtract the address of the (to-be-returned-unsealed) data from the top to
+  // give the length, clobbering our unsealing key.
+  sub             a2, a3, a0
+  // Set the new bounds, using an exact setting so that any errors in the
+  // allocator's alignment turn into an untagged capability here.
+  csetboundsexact ca0, ca0, a2
+
+  /* And that's an unwrap. */
+  cret
+
+.Lexit_failure:
+  /* Failure; clobber potential sensitive state in ca2 and return null */
+  zeroOne a2
+  zeroOne a0
+  cret
+
+/**
+ * An in-assembler implementation of
+ *
+ * [[cheriot::interrupt_state(disabled)]] void *__cheri_libcall
+ * token_obj_unseal(struct TokenKeyType *, void* __sealed_capability);
+ *
+ * The name has been manually mangled as per the C++ rules.
+ */
+	.hidden _Z16token_obj_unsealP12TokenKeyTypeP15TokenObjectType
+	.globl  _Z16token_obj_unsealP12TokenKeyTypeP15TokenObjectType
+_Z16token_obj_unsealP12TokenKeyTypeP15TokenObjectType:
+_Z16token_obj_unsealP12TokenKeyTypeU19__sealed_capabilityPv:
+	LoadCapPCC ca2, __sealingkey_either
+
+	/*
+	 * Backwards compatibility with CUnseal that requires address match.
+	 * This can (and should) be removed once everyone's caught up with
+	 * https://github.com/CHERIoT-Platform/cheriot-sail/pull/87 .
+	 */
+	cgettype   a3, ca1
+	csetaddr   ca2, ca2, a3
+
+	j        .Ltoken_unseal_internal
+
+/**
+ * An in-assembler implementation of
+ *
+ * [[cheriot::interrupt_state(disabled)]] void *__cheri_libcall
+ * token_obj_unseal_static(struct TokenKeyType *, struct TokenObjectType *);
+ *
+ * The name has been manually mangled as per the C++ rules.
+ */
+	.hidden  _Z23token_obj_unseal_staticP12TokenKeyTypeP15TokenObjectType
+	.globl   _Z23token_obj_unseal_staticP12TokenKeyTypeP15TokenObjectType
+_Z23token_obj_unseal_staticP12TokenKeyTypeP15TokenObjectType:
+_Z23token_obj_unseal_staticP12TokenKeyTypeU19__sealed_capabilityPv:
+	LoadCapPCC ca2, __sealingkey_static
+	j          .Ltoken_unseal_internal
+
+/**
+ * An in-assembler implementation of
+ *
+ * [[cheriot::interrupt_state(disabled)]] void *__cheri_libcall
+ * token_obj_unseal_dynamic(struct TokenKeyType *, struct TokenObjectType *);
+ *
+ * The name has been manually mangled as per the C++ rules.
+ */
+	.hidden  _Z24token_obj_unseal_dynamicP12TokenKeyTypeP15TokenObjectType
+	.globl   _Z24token_obj_unseal_dynamicP12TokenKeyTypeP15TokenObjectType
+_Z24token_obj_unseal_dynamicP12TokenKeyTypeP15TokenObjectType:
+_Z24token_obj_unseal_dynamicP12TokenKeyTypeU19__sealed_capabilityPv:
+	LoadCapPCC ca2, __sealingkey_dynamic
+	j          .Ltoken_unseal_internal
+
+/**
+ * An in-assembler implementation of
+ *
+ * void *__cheri_libcall
+ * token_permissions_and(struct TokenKeyType *, int);
+ *
+ * The name has been manually mangled as per the C++ rules.
+ */
+	.hidden  _Z21token_permissions_andU19__sealed_capabilityPvi
+	.globl   _Z21token_permissions_andU19__sealed_capabilityPvi
+_Z21token_permissions_andU19__sealed_capabilityPvi:
+	// Clear all bits that aren't valid permission bits in the mask.
+	andi       a1, a1, 7
+	// Set all bits in the address part of the mask.  This is now a mask that
+	// we can apply to the address to preserve the address and clear some
+	// permissions.
+	ori        a1, a1, 0xfffffff8
+	// Get the sealing key and set its address for the reseal operation
+	// This may result in a sealing key that is invalid, but that's fine: the
+	// unseal and seal will just give invalid capabilities.
+	LoadCapPCC ca2, __sealingkey_either
+	cgettype   a3, ca0
+	csetaddr   ca2, ca2, a3
+	// Unseal a0 into a0
+	cunseal    ca0, ca0, ca2
+	// Apply the mask to the address
+	cgetaddr   a3, ca0
+	and        a3, a3, a1
+	csetaddr   ca0, ca0, a3
+	// Reseal the result
+	cseal      ca0, ca0, ca2
+	// Clear the sealing key
+	zeroOne    a2
+	// Return, the resealed value is now in ca0.
+	cret
+
+
+/* TODO: Eventually this goes away, when the assembler can generate it for us */
+CHERIOT_EXPORT_LIBCALL \
+  _Z16token_obj_unsealP12TokenKeyTypeP15TokenObjectType, \
+  0 /* No stack usage */, \
+  0b00010010 /* IRQs deferred, two argument registers */
+
+CHERIOT_EXPORT_LIBCALL \
+  _Z23token_obj_unseal_staticP12TokenKeyTypeP15TokenObjectType, \
+  0 /* No stack usage */, \
+  0b00010010 /* IRQs deferred, two argument registers */
+
+CHERIOT_EXPORT_LIBCALL \
+  _Z24token_obj_unseal_dynamicP12TokenKeyTypeP15TokenObjectType, \
+  0 /* No stack usage */, \
+  0b00010010 /* IRQs deferred, two argument registers */
+
+// TODO: For now, we export these with both names.  Eventually the ones above
+// can be garbage collected.  This doesn't make much difference because the
+// export table entries use memory that we can reuse for heap later.
+
+CHERIOT_EXPORT_LIBCALL \
+  _Z16token_obj_unsealP12TokenKeyTypeU19__sealed_capabilityPv, \
+  0 /* No stack usage */, \
+  0b00010010 /* IRQs deferred, two argument registers */
+
+CHERIOT_EXPORT_LIBCALL \
+  _Z23token_obj_unseal_staticP12TokenKeyTypeU19__sealed_capabilityPv, \
+  0 /* No stack usage */, \
+  0b00010010 /* IRQs deferred, two argument registers */
+
+CHERIOT_EXPORT_LIBCALL \
+  _Z24token_obj_unseal_dynamicP12TokenKeyTypeU19__sealed_capabilityPv, \
+  0 /* No stack usage */, \
+  0b00010010 /* IRQs deferred, two argument registers */
+
+CHERIOT_EXPORT_LIBCALL \
+  _Z21token_permissions_andU19__sealed_capabilityPvi, \
+  0 /* No stack usage */, \
+  0b00000000 /* Interrupts enabled */

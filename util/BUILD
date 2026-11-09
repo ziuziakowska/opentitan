@@ -37,6 +37,11 @@ py_binary(
 )
 
 py_binary(
+    name = "cheriot_image_ld",
+    srcs = ["cheriot_image_ld.py"],
+)
+
+py_binary(
     name = "build_info",
     srcs = ["build_info.py"],
 )

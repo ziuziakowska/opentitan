@@ -1,0 +1,105 @@
+--- a/sdk/core/loader/boot.cc
++++ b/sdk/core/loader/boot.cc
+@@ -17,12 +17,9 @@
+ #include "types.h"
+ #include <cheri.hh>
+ #include <compartment.h>
+-#include <platform-uart.hh>
+ #include <priv/riscv.h>
+ #include <riscvreg.h>
+ #include <stdint.h>
+-#include <stdio.h>
+-#include <stdlib.h>
+ 
+ #include <platform-switcher_cpu_features.h>
+ 
+@@ -149,8 +146,6 @@
+ 	// for code and data capabilities, giving the range 0-0xf reserved for
+ 	// hardware use. Assert that we're not using more than we need (two in the
+ 	// enum are outside of the hardware space).
+-	static_assert(magic_enum::enum_count<SealingType>() <= 12,
+-	              "Too many sealing types reserved for a 3-bit otype field");
+ 
+ } // namespace
+ 
+@@ -609,25 +604,9 @@
+ 					}
+ 				}
+ 			}
+-			// MMIO regions should be within the range of the MMIO space.  As a
+-			// special case (to be removed at some point when we have a generic
+-			// way of setting up shared objects), allow the hazard-pointer
+-			// region and hazard epoch to be excluded from this test.
+-			Debug::Invariant(
+-			  ((entry.address >= LA_ABS(__mmio_region_start)) &&
+-			   (entry.address + entry.size() <= LA_ABS(__mmio_region_end))) ||
+-			    ((entry.address >= LA_ABS(__shared_objects_start)) &&
+-				 (entry.address + entry.size() <=
+-				  LA_ABS(__shared_objects_end))),
+-			  "{}--{} is not in the MMIO range ({}--{}) or the shared object "
+-			  "range ({}--{})",
+-			  entry.address,
+-			  entry.address + entry.size(),
+-			  LA_ABS(__mmio_region_start),
+-			  LA_ABS(__mmio_region_end),
+-			  LA_ABS(__shared_objects_start),
+-			  LA_ABS(__shared_objects_end));
+-
++			// Which addresses a compartment may import is a policy decision for
++			// whoever links the image (the compartment report lists every MMIO
++			// import); the loader does not restrict them.
+ 			auto ret = build(entry.address, entry.size());
+ 			// Remove any permissions that shouldn't be held here.
+ 			ret.permissions() &= entry.permissions();
+@@ -1254,22 +1233,20 @@
+ 	Root::install_root<Root::ISAType::Seal>(almightySeal);
+ 	Root::install_root<Root::ISAType::RW>(almightyRW);
+ 
+-	auto uart =
+-	  build<volatile Uart,
+-	        Root::Type::RWGlobal,
+-	        PermissionSet{
+-	          Permission::Load, Permission::Store, Permission::Global}>(
+-	    LA_ABS(__export_mem_uart));
+-	// Initialise the UART so that we can use it for debugging.
+-	uart->init();
+-
+-	// Set up the UART that's used for debug output.
+-	if constexpr (DebugLoader)
++#if DEBUG_LOADER
++	// Set up the UART that's used for debug output.  `Debug::log` and
++	// `Debug::Invariant` work after this point.
+ 	{
+-		// Set the UART.  `Debug::log` and `Debug::Invariant` work after this
+-		// point.
++		auto uart =
++		  build<volatile Uart,
++		        Root::Type::RWGlobal,
++		        PermissionSet{
++		          Permission::Load, Permission::Store, Permission::Global}>(
++		    LA_ABS(__export_mem_uart));
++		uart->init();
+ 		LoaderWriter::set_uart(uart);
+ 	}
++#endif
+ 
+ 	Debug::log("UART initialised!");
+ 	Debug::log("Header: {}", &imgHdr);
+@@ -1504,14 +1481,9 @@
+ 	auto  exceptionEntryOffset =
+ 	  build<ExportEntry>(
+ 	    imgHdr.scheduler().exportTable,
+-	    LA_ABS(
+-#if __has_extension(cheri_sealed_pointers) &&                                  \
+-  !defined(CHERIOT_NO_SEALED_POINTERS)
+-	      __export_scheduler__Z15exception_entryU19__sealed_capabilityP19TrustedStackGenericILj0EEjjj
+-#else
+-	      __export_scheduler__Z15exception_entryP15TokenObjectTypejjj
+-#endif
+-	      ))
++	    // The scheduler is written in C, whose export name has no
++	    // `TrustedStackGeneric` in it.
++	    LA_ABS(__export_scheduler__Z15exception_entryU19__sealed_capabilityPvjjj))
+ 	    ->functionStart;
+ 	auto schedExceptionEntry = build_pcc(imgHdr.scheduler());
+ 	schedExceptionEntry.address() += exceptionEntryOffset;

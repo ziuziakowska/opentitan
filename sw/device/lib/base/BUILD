@@ -106,6 +106,12 @@ opentitan_test(
     ],
 )
 
+# Declarations for CHERIoT compartments: compiler attributes only.
+cc_library(
+    name = "cheriot_compartment",
+    hdrs = ["cheriot_compartment.h"],
+)
+
 cc_library(
     name = "global_mock",
     hdrs = ["global_mock.h"],

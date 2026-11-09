@@ -1,0 +1,52 @@
+--- a/sdk/core/loader/types.h
++++ b/sdk/core/loader/types.h
+@@ -9,7 +9,7 @@
+ #include "defines.h"
+ #include <cheri.hh>
+ #include <concepts>
+-#include <magic_enum/magic_enum.hpp>
++#include <utility>
+ #include <stddef.h>
+ #include <stdint.h>
+ 
+@@ -80,6 +80,9 @@
+ 			RWStoreL
+ 		};
+ 
++		/// The number of software-defined root types, i.e. of `Type` values.
++		static constexpr size_t TypeCount = 5;
++
+ // clang-18 requires `static` on explicit specializations of
+ // static member variable templates, while clang-19 warns if the `static`
+ // is present.
+@@ -224,8 +227,9 @@
+ 		static inline void
+ 		install_root(CHERI::Capability<void> architecturalRootCapability)
+ 		{
+-			magic_enum::enum_for_each<Type>([&](auto val) {
+-				constexpr Type SoftwareType = val;
++			[&]<size_t... Index>(std::index_sequence<Index...>) {
++			(..., [&]() {
++				constexpr Type SoftwareType = static_cast<Type>(Index);
+ 				if constexpr (ArchitecturalRoot<SoftwareType> ==
+ 				              ArchitecturalType)
+ 				{
+@@ -242,7 +246,8 @@
+ 					}
+ 					roots[static_cast<size_t>(SoftwareType)] = softwareRoot;
+ 				}
+-			});
++			}());
++			}(std::make_index_sequence<TypeCount>{});
+ 		}
+ 
+ 		template<Type                 Type,
+@@ -285,7 +290,7 @@
+ 		 * The set of capabilities from which all others will be derived.
+ 		 */
+ 		static inline constinit CHERI::Capability<void>
+-		  roots[magic_enum::enum_count<Type>()];
++		  roots[TypeCount];
+ 	};
+ 
+ 	/**

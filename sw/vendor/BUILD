@@ -37,3 +37,10 @@ cc_library(
     hdrs = glob(["cryptoc/include/cryptoc/*.h"]),
     strip_include_prefix = "cryptoc/include",
 )
+
+# The files of the CHERIoT RTOS loader and compartment switcher; see
+# `//sw/device/cheriot_rtos` for how they are built.
+filegroup(
+    name = "cheriot_rtos",
+    srcs = glob(["cheriot_rtos/**"]),
+)

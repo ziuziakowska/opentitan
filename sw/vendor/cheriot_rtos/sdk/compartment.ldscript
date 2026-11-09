@@ -1,0 +1,78 @@
+# Copyright Microsoft and CHERIoT Contributors.
+# SPDX-License-Identifier: MIT
+
+SECTIONS
+{
+	. = 0;
+	.compartment_export_table : ALIGN(8)
+	{
+		# This section is a sdk/core/loader/types.h:/ExportTable
+
+		# Space for the compartment's PCC and GDC
+		. = . + 16;
+
+		# The compartment error handler, if it is defined, as displacement
+		# relative to the start of .text / __compartment_code_start.
+		# See commentary in the ExportTable type for details.
+		SHORT(DEFINED(compartment_error_handler) ? compartment_error_handler : 0xffff);
+		# The stackless compartment error handler, if it is defined.
+		SHORT(DEFINED(compartment_error_handler_stackless) ? compartment_error_handler_stackless : 0xffff);
+
+		# Array of compartment exports; see sdk/core/loader/types.h:/ExportEntry
+		*(.compartment_exports .compartment_exports.*);
+	}
+	# Lay out the compartment imports section.  This will end up on PCC.
+	.compartment_import_table : ALIGN(8)
+	{
+		# Array of compartment imports.
+		HIDDEN(__compartment_pcc_start = .);
+		# The first import table entry is the compartment switcher.
+		HIDDEN(.compartment_switcher = .);
+		. = . + 8;
+		*(.compartment_imports .compartment_imports.*);
+	}
+	# Lay out the code
+	.text :
+	{
+		HIDDEN(__compartment_code_start = .);
+		# If there is a compartment error handler, make sure that it is before
+		# anything that can have linker relaxations so that its displacement
+		# from __compartment_code_start is a constant.
+		*(.compartment_error_handler_stackless);
+		*(.compartment_error_handler);
+		*(.text .text.*);
+	}
+	.init_array :
+	{
+		HIDDEN(__init_array_start = .);
+		*(.init_array);
+		HIDDEN(__init_array_end = .);
+	}
+	# Read-only data that will end up in the compartment's PCC.
+	.rodata :
+	{
+		*(.rodata .rodata.*);
+		*(.data.rel.ro .data.rel.ro.*);
+	}
+	# Lay out all of the globals.
+	.data :
+	{
+		*(.data .data.*);
+		*(.sdata .sdata.*);
+	}
+	# BSS remains in a separate section so that we can find it later.
+	.bss :
+	{
+		*(.sbss .sbss.*);
+		*(.bss .bss.*);
+	}
+	.sealed_objects :
+	{
+		*(.sealed_objects .sealed_objects.*);
+	}
+	# Throw some stuff away that we don't need.
+	/DISCARD/ :
+	{
+		*(.comment);
+	}
+}

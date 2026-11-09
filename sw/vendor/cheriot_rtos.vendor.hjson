@@ -1,0 +1,87 @@
+// Copyright lowRISC contributors (OpenTitan project).
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+{
+  name: "cheriot_rtos",
+  target_dir: "cheriot_rtos",
+
+  patch_dir: "patches/cheriot_rtos",
+
+  upstream: {
+    url: "https://github.com/CHERIoT-Platform/cheriot-rtos.git",
+    rev: "31e24610e83690879a10784ac14af426470ec765",
+  },
+
+  // Only the loader, the compartment switcher and the token library, and only
+  // what they need: the
+  // exact set of files found by compiling them with `-MD`, plus the linker
+  // scripts and the file the assembler's `.include` hides from dependency
+  // tracking. Add to this list as more of the RTOS is brought in.
+  //
+  // Nothing from the C++ standard library or `magic_enum` is vendored. Three
+  // files are patched so that they do not need either, and the few standard
+  // facilities left are provided by `sw/device/cheriot_rtos/std`. The loader's
+  // debug output is replaced by a no-output `debug.hh`, which is therefore not
+  // vendored: it lives in `sw/device/cheriot_rtos/loader`.
+  mapping: [
+    // Linker scripts: the loader's, one per component kind needed, and the templates for the whole image.
+    "sdk/compartment.ldscript",
+    "sdk/core/loader/loader.ldscript",
+    "sdk/firmware.rocode.ldscript.in",
+    "sdk/firmware.rwdata.ldscript.in",
+    "sdk/privileged-compartment.ldscript",
+
+    // Loader (assembly and C++), and the headers it shares with the switcher, scheduler and allocator.
+    "sdk/core/allocator/token.h",
+    "sdk/core/allocator/token_types.h",
+    "sdk/core/loader/boot.S",
+    "sdk/core/loader/boot.cc",
+    "sdk/core/loader/constants.h",
+    "sdk/core/loader/defines.h",
+    "sdk/core/loader/types.h",
+    "sdk/core/scheduler/loaderinfo.h",
+    "sdk/core/switcher/export-table-assembly.h",
+    "sdk/core/switcher/misc-assembly.h",
+    "sdk/core/switcher/trusted-stack-assembly.h",
+    "sdk/core/switcher/trusted-stack.hh",
+
+    // Compartment switcher (assembly).
+    "sdk/core/switcher/entry.S",
+
+    // Token library (assembly): the loader writes its sealing keys.
+    "sdk/core/token_library/token_unseal.S",
+
+    // Platform headers: Ibex CPU features, and the generic RISC-V default they build on.
+    "sdk/include/platform/generic-riscv/platform-switcher_cpu_features.h",
+    "sdk/include/platform/ibex/ibex-csr.h",
+    "sdk/include/platform/ibex/platform-switcher_cpu_features.hh",
+    "sdk/include/platform/ibex/platform-switcher_cpu_features.inc",
+
+    // SDK C and C++ headers.
+    "sdk/include/__cheri_sealed.h",
+    "sdk/include/__compartment-macros.h",
+    "sdk/include/assembly-helpers.h",
+    "sdk/include/assembly-helpers.s",
+    "sdk/include/cdefs.h",
+    "sdk/include/cheri-builtins.h",
+    "sdk/include/cheri.h",
+    "sdk/include/cheri.hh",
+    "sdk/include/compartment-macros-asm.S",
+    "sdk/include/compartment-macros.h",
+    "sdk/include/compartment.h",
+    "sdk/include/errno.h",
+    "sdk/include/priv/riscv.h",
+    "sdk/include/riscvreg.h",
+    "sdk/include/stdbool.h",
+    "sdk/include/stddef.h",
+    "sdk/include/stdint.h",
+    "sdk/include/string.h",
+    "sdk/include/utils.hh",
+
+    // Must be last. This entry only exists to apply the patches in `patch_dir`:
+    // they are applied relative to the target directory (the directory of this
+    // file), after everything above has been copied. The patches name the files
+    // they change by their path from the upstream root.
+    {from: "LICENSE", to: "LICENSE", patch_dir: "."},
+  ],
+}
