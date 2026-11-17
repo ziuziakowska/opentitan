@@ -42,6 +42,7 @@ pub mod consts {
     pub const DMSTATUS: u32 = 0x11;
     pub const HARTINFO: u32 = 0x12;
     pub const ABSTRACTCS: u32 = 0x16;
+    pub const COMMAND: u32 = 0x17;
 
     pub const DMSTATUS_ANYHALTED_MASK: u32 = 1 << 8;
     pub const DMSTATUS_ANYRUNNING_MASK: u32 = 1 << 10;
