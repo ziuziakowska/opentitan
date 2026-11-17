@@ -46,9 +46,6 @@ struct Opts {
 // Needs to match util/openocd/target
 const RISCV_IDCODE: u32 = 0x10021cdf;
 
-// Debug module registers not covered by `consts`.
-const COMMAND: u32 = 0x17;
-
 // Abstract command fields, for an Access Register command (cmdtype 0).
 const AARSIZE_SHIFT: u32 = 20;
 const TRANSFER: u32 = 1 << 17;
@@ -83,7 +80,7 @@ fn access_register<D: Dmi>(
     write: bool,
 ) -> Result<u32> {
     let cmd = aarsize << AARSIZE_SHIFT | TRANSFER | if write { WRITE } else { 0 } | regno;
-    hart.dmi_write(COMMAND, cmd)?;
+    hart.dmi_write(consts::COMMAND, cmd)?;
 
     // The command completes when the hart has run it and re-entered the debug ROM. Allow plenty of
     // polls: each one is a JTAG round trip, so this is not the limiting factor.
