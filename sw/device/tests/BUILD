@@ -841,10 +841,9 @@ opentitan_test(
     ),
     platform = CHERIOT_PLATFORM,
     verilator = verilator_params(
-        exit_failure = "FAIL |[RC]TRAP ",
-        exit_success = "CHERIOT DEBUG PASS\r\n",
-        tags = ["manual"],
-        timeout = "eternal",
+        needs_jtag = True,
+        test_harness = "//sw/host/tests/chip/rv_dm:cheriot_caps",
+        timeout = "long",
     ),
     deps = CHERIOT_SMOKETEST_DEPS,
 )
