@@ -233,10 +233,10 @@ cc_action_type(
 
 DISASSEMBLE_ARGS = [
     "-wx",
-    "--disassemble",
-    "--line-numbers",
+    "--disassemble-all",
+    #"--line-numbers",
     "--disassemble-zeroes",
-    "--source",
+    #"--source",
 ]
 
 cc_args(
